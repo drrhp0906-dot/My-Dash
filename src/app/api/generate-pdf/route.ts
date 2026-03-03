@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 
+export const maxDuration = 60 // Set max duration for Vercel
+
 interface GeneratedContent {
   title: string
   summary: string
@@ -12,69 +14,97 @@ interface GeneratedContent {
   }[]
 }
 
+// Sanitize text for PDF (remove special characters not supported by standard fonts)
+function sanitizeForPdf(text: string): string {
+  return text
+    .replace(/→/g, '->')
+    .replace(/←/g, '<-')
+    .replace(/↑/g, '^')
+    .replace(/↓/g, 'v')
+    .replace(/✓/g, '[x]')
+    .replace(/✗/g, '[ ]')
+    .replace(/•/g, '-')
+    .replace(/°/g, ' deg')
+    .replace(/±/g, '+/-')
+    .replace(/×/g, 'x')
+    .replace(/÷/g, '/')
+    .replace(/α/g, 'alpha')
+    .replace(/β/g, 'beta')
+    .replace(/γ/g, 'gamma')
+    .replace(/δ/g, 'delta')
+    .replace(/μ/g, 'mu')
+    .replace(/[^\x00-\x7F]/g, '') // Remove any remaining non-ASCII characters
+}
+
+function sanitizeContent(content: GeneratedContent): GeneratedContent {
+  return {
+    title: sanitizeForPdf(content.title),
+    summary: sanitizeForPdf(content.summary),
+    sections: content.sections.map(section => ({
+      heading: sanitizeForPdf(section.heading),
+      content: sanitizeForPdf(section.content),
+      keyPoints: section.keyPoints.map(point => sanitizeForPdf(point))
+    }))
+  }
+}
+
 async function generateTopicContent(topic: string): Promise<GeneratedContent> {
   const zai = await ZAI.create()
   
-  const systemPrompt = `You are a medical education expert specializing in creating comprehensive, accurate study materials for MBBS students. Your task is to research and provide detailed, factual information about medical topics.
+  const userPrompt = `Create a concise study guide for: "${topic}"
 
-Guidelines:
-1. Provide accurate, evidence-based medical information
-2. Structure content for easy understanding and exam preparation
-3. Include clinical correlations and practical applications
-4. Use clear, concise language appropriate for medical students
-5. Include key definitions, pathophysiology, clinical features, and treatment approaches
-6. Avoid speculation or unverified information`
-
-  const userPrompt = `Create a comprehensive study guide for the topic: "${topic}"
-
-Please provide a structured response with:
-1. A clear title
-2. A brief summary (2-3 sentences)
-3. 4-6 detailed sections with headings, content, and key points
-4. Focus on exam-relevant information
-
-Format your response as JSON:
+Return ONLY valid JSON (no markdown, no code blocks):
 {
-  "title": "...",
-  "summary": "...",
+  "title": "Topic Title",
+  "summary": "2-3 sentence overview",
   "sections": [
     {
-      "heading": "...",
-      "content": "detailed paragraph explaining the concept...",
+      "heading": "Section Name",
+      "content": "Brief explanation paragraph",
       "keyPoints": ["point 1", "point 2", "point 3"]
     }
   ]
 }
 
-Ensure all information is medically accurate and relevant for MBBS exam preparation.`
+Include 3-4 sections maximum. Focus on exam-relevant facts. Use only ASCII characters (no arrows, greek letters, or special symbols).`
 
-  const completion = await zai.chat.completions.create({
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    temperature: 0.3,
-    max_tokens: 3000
-  })
-
-  const responseText = completion.choices[0]?.message?.content || ''
-  
   try {
+    const completion = await zai.chat.completions.create({
+      messages: [
+        { 
+          role: 'system', 
+          content: 'You are a medical education expert. Return only valid JSON. No markdown, no explanations. Use only ASCII characters - replace arrows with ->, greek letters with names (alpha, beta), etc.' 
+        },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 2000
+    })
+
+    const responseText = completion.choices[0]?.message?.content || ''
+    console.log('AI Response length:', responseText.length)
+    
+    // Parse JSON - handle potential markdown code blocks
     let jsonStr = responseText
     const jsonMatch = responseText.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       jsonStr = jsonMatch[0]
     }
-    return JSON.parse(jsonStr)
-  } catch {
+    
+    const parsed = JSON.parse(jsonStr)
+    // Sanitize content for PDF
+    return sanitizeContent(parsed)
+  } catch (error) {
+    console.error('Content generation error:', error)
+    // Return a simple fallback
     return {
       title: topic,
-      summary: 'A comprehensive overview of ' + topic,
+      summary: `A comprehensive overview of ${topic} for medical students.`,
       sections: [
         {
           heading: 'Overview',
-          content: responseText.substring(0, 500),
-          keyPoints: ['Key concepts covered in the study material']
+          content: `${topic} is an important topic in medical education. Understanding its key concepts is essential for exam preparation.`,
+          keyPoints: ['Important for exams', 'Requires understanding of pathophysiology', 'Clinical correlations are key']
         }
       ]
     }
@@ -85,10 +115,8 @@ async function generateTopicImage(topic: string): Promise<string | null> {
   try {
     const zai = await ZAI.create()
     
-    const imagePrompt = `Medical educational illustration of ${topic}, clean professional style, anatomically accurate, suitable for medical textbook, white background, educational diagram style, no text labels`
-    
     const response = await zai.images.generations.create({
-      prompt: imagePrompt,
+      prompt: `Medical diagram of ${topic}, educational illustration, clean professional style, anatomically accurate, white background, no text`,
       size: '1024x1024'
     })
 
@@ -112,7 +140,6 @@ async function createPDF(content: GeneratedContent, imageBase64: string | null):
   
   let currentPage = pdfDoc.addPage([pageWidth, pageHeight])
   let yPosition = pageHeight - margin
-  
   const lineHeight = 14
   const paragraphSpacing = 10
   
@@ -142,43 +169,32 @@ async function createPDF(content: GeneratedContent, imageBase64: string | null):
       }
     })
     
-    if (currentLine) {
-      lines.push(currentLine)
-    }
-    
+    if (currentLine) lines.push(currentLine)
     return lines
   }
   
-  const drawText = (text: string, fontSize: number, fontType: typeof font, color: { r: number; g: number; b: number } = { r: 0, g: 0, b: 0 }) => {
-    const lines = wrapText(text, fontSize, contentWidth, fontType)
+  const drawText = (text: string, fontSize: number, textFont: typeof font, color = { r: 0, g: 0, b: 0 }) => {
+    const lines = wrapText(text, fontSize, contentWidth, textFont)
     lines.forEach((line) => {
       checkNewPage(lineHeight)
       currentPage.drawText(line, {
         x: margin,
         y: yPosition,
         size: fontSize,
-        font: fontType,
+        font: textFont,
         color: rgb(color.r, color.g, color.b)
       })
       yPosition -= lineHeight
     })
   }
   
-  // Header with branding
+  // Header
   currentPage.drawRectangle({
-    x: 0,
-    y: pageHeight - 40,
-    width: pageWidth,
-    height: 40,
+    x: 0, y: pageHeight - 40, width: pageWidth, height: 40,
     color: rgb(0.2, 0.3, 0.5)
   })
-  
   currentPage.drawText("Riyan's Dash - Medical Study Guide", {
-    x: margin,
-    y: pageHeight - 25,
-    size: 12,
-    font: boldFont,
-    color: rgb(1, 1, 1)
+    x: margin, y: pageHeight - 25, size: 12, font: boldFont, color: rgb(1, 1, 1)
   })
   
   yPosition = pageHeight - 70
@@ -187,95 +203,50 @@ async function createPDF(content: GeneratedContent, imageBase64: string | null):
   drawText(content.title, 24, boldFont, { r: 0.2, g: 0.3, b: 0.5 })
   yPosition -= paragraphSpacing * 2
   
-  // Decorative line
-  currentPage.drawLine({
-    start: { x: margin, y: yPosition },
-    end: { x: pageWidth - margin, y: yPosition },
-    thickness: 2,
-    color: rgb(0.2, 0.3, 0.5)
-  })
-  yPosition -= paragraphSpacing * 2
-  
   // Summary box
   checkNewPage(80)
   const summaryLines = wrapText(content.summary, 10, contentWidth - 20, font)
   const summaryBoxHeight = 30 + (summaryLines.length * 12)
   
   currentPage.drawRectangle({
-    x: margin,
-    y: yPosition - summaryBoxHeight,
-    width: contentWidth,
-    height: summaryBoxHeight,
+    x: margin, y: yPosition - summaryBoxHeight, width: contentWidth, height: summaryBoxHeight,
     color: rgb(0.95, 0.97, 1)
   })
-  
   currentPage.drawText("Summary:", {
-    x: margin + 10,
-    y: yPosition - 15,
-    size: 12,
-    font: boldFont,
-    color: rgb(0.2, 0.3, 0.5)
+    x: margin + 10, y: yPosition - 15, size: 12, font: boldFont, color: rgb(0.2, 0.3, 0.5)
   })
-  
   summaryLines.forEach((line, idx) => {
     currentPage.drawText(line, {
-      x: margin + 10,
-      y: yPosition - 30 - (idx * 12),
-      size: 10,
-      font: font,
-      color: rgb(0.3, 0.3, 0.3)
+      x: margin + 10, y: yPosition - 30 - (idx * 12), size: 10, font: font, color: rgb(0.3, 0.3, 0.3)
     })
   })
-  
   yPosition -= summaryBoxHeight + paragraphSpacing * 2
   
-  // Add image if available
+  // Image
   if (imageBase64) {
     try {
       const imageBytes = Buffer.from(imageBase64, 'base64')
       let image = null
       
-      try {
-        image = await pdfDoc.embedPng(imageBytes)
-      } catch {
-        try {
-          image = await pdfDoc.embedJpg(imageBytes)
-        } catch {
-          console.log('Could not embed image')
-        }
+      try { image = await pdfDoc.embedPng(imageBytes) } 
+      catch { 
+        try { image = await pdfDoc.embedJpg(imageBytes) } 
+        catch { } 
       }
       
       if (image) {
-        const imageWidth = 250
-        const imageHeight = 250
+        const imageWidth = 200
+        const imageHeight = 200
         const imageX = (pageWidth - imageWidth) / 2
         
         checkNewPage(imageHeight + 30)
-        
-        currentPage.drawRectangle({
-          x: imageX - 5,
-          y: yPosition - imageHeight - 5,
-          width: imageWidth + 10,
-          height: imageHeight + 10,
-          color: rgb(0.9, 0.9, 0.9)
-        })
-        
         currentPage.drawImage(image, {
-          x: imageX,
-          y: yPosition - imageHeight,
-          width: imageWidth,
-          height: imageHeight
+          x: imageX, y: yPosition - imageHeight, width: imageWidth, height: imageHeight
         })
-        
         currentPage.drawText(`Illustration: ${content.title}`, {
-          x: imageX,
-          y: yPosition - imageHeight - 20,
-          size: 9,
-          font: font,
-          color: rgb(0.5, 0.5, 0.5)
+          x: imageX, y: yPosition - imageHeight - 15, size: 9, font: font, color: rgb(0.5, 0.5, 0.5)
         })
-        
-        yPosition -= imageHeight + 40
+        yPosition -= imageHeight + 30
       }
     } catch (error) {
       console.error('Error embedding image:', error)
@@ -287,77 +258,47 @@ async function createPDF(content: GeneratedContent, imageBase64: string | null):
     checkNewPage(100)
     
     currentPage.drawRectangle({
-      x: margin,
-      y: yPosition - 5,
-      width: 4,
-      height: 18,
-      color: rgb(0.2, 0.3, 0.5)
+      x: margin, y: yPosition - 5, width: 4, height: 18, color: rgb(0.2, 0.3, 0.5)
     })
-    
     drawText(section.heading, 14, boldFont, { r: 0.15, g: 0.25, b: 0.45 })
     yPosition -= paragraphSpacing
     
     drawText(section.content, 11, font)
     yPosition -= paragraphSpacing
     
-    if (section.keyPoints && section.keyPoints.length > 0) {
+    // Key points
+    if (section.keyPoints?.length > 0) {
       checkNewPage(section.keyPoints.length * 20 + 30)
-      
       currentPage.drawText("Key Points:", {
-        x: margin + 10,
-        y: yPosition,
-        size: 10,
-        font: boldFont,
-        color: rgb(0.3, 0.4, 0.5)
+        x: margin + 10, y: yPosition, size: 10, font: boldFont, color: rgb(0.3, 0.4, 0.5)
       })
       yPosition -= lineHeight
       
       section.keyPoints.forEach(point => {
         checkNewPage(lineHeight + 5)
-        
         currentPage.drawCircle({
-          x: margin + 20,
-          y: yPosition + 3,
-          size: 3,
-          color: rgb(0.2, 0.5, 0.3)
+          x: margin + 20, y: yPosition + 3, size: 3, color: rgb(0.2, 0.5, 0.3)
         })
-        
         const pointLines = wrapText(point, 10, contentWidth - 40, font)
         pointLines.forEach((line, idx) => {
           currentPage.drawText(line, {
-            x: margin + 30,
-            y: yPosition - (idx * lineHeight),
-            size: 10,
-            font: font,
-            color: rgb(0.3, 0.3, 0.3)
+            x: margin + 30, y: yPosition - (idx * lineHeight), size: 10, font: font, color: rgb(0.3, 0.3, 0.3)
           })
         })
         yPosition -= pointLines.length * lineHeight + 3
       })
-      
-      yPosition -= paragraphSpacing
     }
-    
-    yPosition -= paragraphSpacing
+    yPosition -= paragraphSpacing * 2
   }
   
   // Footer
   const pages = pdfDoc.getPages()
   pages.forEach((page, index) => {
     page.drawText(`Page ${index + 1} of ${pages.length}`, {
-      x: pageWidth - 100,
-      y: 30,
-      size: 9,
-      font: font,
-      color: rgb(0.5, 0.5, 0.5)
+      x: pageWidth - 100, y: 30, size: 9, font: font, color: rgb(0.5, 0.5, 0.5)
     })
-    
-    page.drawText("Generated by Riyan's Dash - Medical Exam Prep", {
-      x: margin,
-      y: 30,
-      size: 8,
-      font: font,
-      color: rgb(0.6, 0.6, 0.6)
+    page.drawText("Generated by Riyan's Dash", {
+      x: margin, y: 30, size: 8, font: font, color: rgb(0.6, 0.6, 0.6)
     })
   })
   
@@ -367,25 +308,28 @@ async function createPDF(content: GeneratedContent, imageBase64: string | null):
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { topic } = body
+    const { topic, skipImage } = body
     
     if (!topic || typeof topic !== 'string') {
-      return NextResponse.json(
-        { error: 'Topic is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Topic is required' }, { status: 400 })
     }
     
-    console.log('Generating content for topic:', topic)
+    console.log('Generating content for:', topic)
     
+    // Generate content
     const content = await generateTopicContent(topic)
-    console.log('Content generated successfully')
+    console.log('Content generated:', content.title)
     
-    const imageBase64 = await generateTopicImage(topic)
-    console.log('Image generation completed')
+    // Generate image (can be skipped for faster testing)
+    let imageBase64: string | null = null
+    if (skipImage !== true) {
+      imageBase64 = await generateTopicImage(topic)
+      console.log('Image generated:', !!imageBase64)
+    }
     
+    // Create PDF
     const pdfBytes = await createPDF(content, imageBase64)
-    console.log('PDF created successfully')
+    console.log('PDF created, size:', pdfBytes.length)
     
     const pdfBase64 = Buffer.from(pdfBytes).toString('base64')
     
@@ -396,7 +340,8 @@ export async function POST(request: NextRequest) {
       content: {
         title: content.title,
         summary: content.summary,
-        sectionsCount: content.sections.length
+        sectionsCount: content.sections.length,
+        hasImage: !!imageBase64
       }
     })
     
