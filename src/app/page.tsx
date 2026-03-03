@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -35,8 +35,13 @@ import {
   Lock,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  FileDown,
+  Sparkles,
+  Loader2,
+  Wand2
 } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 
 // Types
 interface PastQuestion {
@@ -901,7 +906,17 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [subjects, setSubjects] = useState<Subject[]>(initializeSubjects)
   const [selectedSubject, setSelectedSubject] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'subjects' | 'difficulty' | 'timeline'>('subjects')
+  const [viewMode, setViewMode] = useState<'subjects' | 'difficulty' | 'timeline' | 'generator'>('subjects')
+    useEffect(() => {
+      setMounted(true)
+    }, [])
+  const [mounted, setMounted] = useState(false)
+  
+  // PDF Generator states
+  const [pdfTopic, setPdfTopic] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generatedPdf, setGeneratedPdf] = useState<{ pdf: string; filename: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Calculate overall progress
   const getTotalTopics = useCallback(() => {
@@ -1039,6 +1054,44 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  //PDF Generator functions 
+  const handleGeneratorPdf = async () => {
+    if (!pdfTopic.trim()) return
+
+    setIsGenerating(true)
+    setError(null)
+    setGeneratePdf(null)
+
+    try {
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: pdfTopic })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate PDF')
+      }
+
+      setGeneratedPdf({ pdf: data.pdf, filename: data.filename })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occured')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const downloadPdf = () => {
+    if (!generatedPdf) return
+
+    const link = document.createElement('a')
+    link.href = 'data:application/pdf;base64,${generatedPdf.pdf}'
+    link.download = generatedPdf.filename
+    link.click()  
+  }
+  
   const schedule = getRecommendedSchedule()
   const nextExam = getNextExam()
 
@@ -1084,7 +1137,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <CardContent className="p-3 flex items-center gap-2">
                   <Timer className="h-4 w-4" />
                   <span className="text-sm font-medium">
-                    Next: {nextExam?.name} in {getDaysUntil(nextExam?.examDate || new Date())} days
+                    Next: {nextExam?.name} in {mounted ? getDaysUntil(nextExam?.examDate || new Date()) : '...'} days
                   </span>
                 </CardContent>
               </Card>
@@ -1132,7 +1185,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <Card className="bg-gradient-to-br from-rose-500 to-pink-500 text-white border-0">
             <CardHeader className="pb-2">
               <CardDescription className="text-rose-100">Exam Countdown</CardDescription>
-              <CardTitle className="text-3xl font-bold">{getDaysUntil(new Date('2026-04-07'))}</CardTitle>
+              <CardTitle className="text-3xl font-bold">{mounted ? getDaysUntil(new Date('2026-04-07')) : '...'}</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-rose-100">Days until first exam</p>
@@ -1166,7 +1219,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       </p>
                     </div>
                     <Badge variant={getDaysUntil(subject.examDate) <= 30 ? 'destructive' : 'secondary'}>
-                      {formatTimeLeft(getDaysUntil(subject.examDate))}
+                      {mounted ? formatTimeLeft(getDaysUntil(subject.examDate)) : '...'}
                     </Badge>
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3/4">
                       <Progress value={getSubjectProgress(subject)} className="h-1" />
@@ -1183,7 +1236,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
         {/* View Mode Tabs */}
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="subjects" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
               By Subject
@@ -1193,8 +1246,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               By Difficulty
             </TabsTrigger>
             <TabsTrigger value="timeline" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+              <Timer className="h-4 w-4" />
               Timeline
+            </TabsTrigger>
+            <TabsTrigger value="generator" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              PDF Generator
             </TabsTrigger>
           </TabsList>
 
@@ -1214,7 +1271,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       </div>
                       <div className="text-right">
                         <Badge variant="secondary" className="bg-white/20 text-white">
-                          {formatTimeLeft(getDaysUntil(subject.examDate))}
+                          {mounted ? formatTimeLeft(getDaysUntil(subject.examDate)) : '...'}
                         </Badge>
                         <p className="text-sm mt-1">{getSubjectProgress(subject).toFixed(0)}% done</p>
                       </div>
@@ -1540,7 +1597,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             <div>
                               <h3 className="font-semibold text-lg">{subject.name}</h3>
                               <p className="text-sm text-slate-500">
-                                {formatTimeLeft(daysUntil)} • {remainingHours}h remaining
+                                {mounted ? formatTimeLeft(daysUntil): '...'} • {remainingHours}h remaining
                               </p>
                             </div>
                           </div>
@@ -1603,6 +1660,112 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       </div>
                     )
                   })}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* PDF Generator Tab */}
+          <TabsContent value="generator" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-6 w-6 text-purple-600" />
+                  AI-Powered Study Guide Generator
+                </CardTitle>
+                <CardDescription>
+                  Enter a medical topic or question and let AI research, summarize, and generate a PDF with images
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Input Section */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="topic" className="text-base font-medium">Topic or Question</Label>
+                    <Textarea
+                      id="topic"
+                      placeholder="e.g., Rheumatic Fever, What is the pathogenesis of myocardial infarction?, Peptic ulcer disease..."
+                      value={pdfTopic}
+                      onChange={(e) => setPdfTopic(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                      disabled={isGenerating}
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-sm text-slate-500">Quick topics:</span>
+                    {['Rheumatic Fever', 'Myocardial Infarction', 'Viral Hepatitis', 'Tuberculosis', 'Diabetes Mellitus'].map((t) => (
+                      <Button
+                        key={t}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPdfTopic(t)}
+                        disabled={isGenerating}
+                      >
+                        {t}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <Button 
+                    onClick={handleGeneratePdf} 
+                    disabled={isGenerating || !pdfTopic.trim()}
+                    className="w-full md:w-auto bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                    size="lg"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Generating PDF... (30-60s)
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-5 w-5 mr-2" />
+                        Generate Study Guide PDF
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Error Display */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                    <p className="font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5" />
+                      Error: {error}
+                    </p>
+                  </div>
+                )}
+
+                {/* Success & Download */}
+                {generatedPdf && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                    <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                    <h3 className="text-lg font-semibold text-green-800 mb-2">PDF Generated Successfully!</h3>
+                    <p className="text-green-600 mb-4">Your study guide is ready for download.</p>
+                    <Button onClick={downloadPdf} size="lg" className="gap-2 bg-green-600 hover:bg-green-700">
+                      <FileDown className="h-5 w-5" />
+                      Download {generatedPdf.filename}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Info Section */}
+                <div className="bg-slate-50 rounded-lg p-4 border">
+                  <h4 className="font-medium flex items-center gap-2 mb-2">
+                    <Brain className="h-5 w-5 text-purple-600" />
+                    How it works:
+                  </h4>
+                  <ol className="text-sm text-slate-600 space-y-1 list-decimal list-inside">
+                    <li>AI researches your topic using medical knowledge</li>
+                    <li>Generates a comprehensive study guide with key points</li>
+                    <li>Creates an educational illustration for visual learning</li>
+                    <li>Compiles everything into a downloadable PDF</li>
+                  </ol>
+                  <p className="text-xs text-slate-500 mt-3">
+                    ⏱️ Generation takes 30-60 seconds. PDF is not saved - download it before refreshing!
+                  </p>
                 </div>
               </CardContent>
             </Card>
