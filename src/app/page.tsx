@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { 
   BookOpen, 
   Calendar, 
@@ -30,7 +31,11 @@ import {
   ChevronRight,
   Timer,
   Award,
-  BarChart3
+  BarChart3,
+  Lock,
+  LogOut,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 
 // Types
@@ -68,6 +73,11 @@ interface Subject {
   icon: React.ReactNode
   systems: System[]
 }
+
+// Auth Configuration
+const AUTH_KEY = 'riyans-dash-auth'
+const VALID_USERNAME = 'drrhp0906'
+const VALID_PASSWORD = 'reeyu0906'
 
 // Difficulty levels explanation:
 // Easy: Straightforward concepts, direct memorization, clinical correlations easy
@@ -425,354 +435,52 @@ const syllabusData: Subject[] = [
         id: 'cvs-pharm',
         name: 'Cardiovascular System',
         topics: [
-          { 
-            id: 'antianginal', 
-            name: 'Antianginal Drugs', 
-            difficulty: 'medium', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 37-39: Cardiovascular Drugs',
-            pastQuestions: [
-              { question: 'Classify antianginal drugs. Describe the mechanism of action of nitrates.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Nitroglycerin', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'Describe the pharmacology of beta blockers in angina.', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Which antianginal drug is contraindicated in variant angina? a) Nitrates b) Beta blockers c) Calcium channel blockers d) Potassium channel openers', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antihypertensives', 
-            name: 'Antihypertensive Drugs', 
-            difficulty: 'hard', 
-            estimatedHours: 3, 
-            completed: false, 
-            priority: 9, 
-            textbookReference: 'Chapter 37-39: Cardiovascular Drugs',
-            pastQuestions: [
-              { question: 'Classify antihypertensive drugs. Describe the mechanism of action of ACE inhibitors.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Describe the rationale behind combination therapy in hypertension.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Thiazide diuretics in hypertension', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: Calcium channel blockers', type: 'short', year: '2020', university: 'Saurashtra University' },
-              { question: 'MCQ: First line drug for hypertension in diabetic patient is: a) Beta blocker b) ACE inhibitor c) Thiazide d) Calcium channel blocker', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antiarrhythmics', 
-            name: 'Antiarrhythmic Drugs', 
-            difficulty: 'hard', 
-            estimatedHours: 3, 
-            completed: false, 
-            priority: 9, 
-            textbookReference: 'Chapter 40: Antiarrhythmic Drugs',
-            pastQuestions: [
-              { question: 'Classify antiarrhythmic drugs (Vaughan Williams classification).', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Describe the pharmacology of amiodarone.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Lidocaine in arrhythmias', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Which drug is used in torsades de pointes? a) Amiodarone b) Magnesium sulfate c) Lidocaine d) Verapamil', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'heart-failure', 
-            name: 'Drugs for Heart Failure', 
-            difficulty: 'hard', 
-            estimatedHours: 2.5, 
-            completed: false, 
-            priority: 9, 
-            textbookReference: 'Chapter 41: Drugs for Heart Failure',
-            pastQuestions: [
-              { question: 'Describe the pharmacotherapy of congestive heart failure.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Discuss the role of digoxin in heart failure.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: ACE inhibitors in heart failure', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Which is NOT used in heart failure? a) Digoxin b) Furosemide c) Verapamil d) Carvedilol', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'anticoagulants', 
-            name: 'Anticoagulants and Antiplatelet Drugs', 
-            difficulty: 'medium', 
-            estimatedHours: 2.5, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 43: Anticoagulants',
-            pastQuestions: [
-              { question: 'Classify anticoagulants. Describe the pharmacology of heparin.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Compare and contrast heparin and warfarin.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Antiplatelet drugs', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: NOACs', type: 'short', year: '2023', university: 'Saurashtra University' },
-              { question: 'MCQ: Antidote for heparin is: a) Vitamin K b) Protamine sulfate c) FFP d) Idarucizumab', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'lipid-lowering', 
-            name: 'Lipid Lowering Agents', 
-            difficulty: 'medium', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 7, 
-            textbookReference: 'Chapter 42: Hypolipidemic Drugs',
-            pastQuestions: [
-              { question: 'Classify hypolipidemic drugs. Describe the mechanism of action of statins.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Adverse effects of statins', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'MCQ: Which drug reduces cholesterol absorption from intestine? a) Statins b) Ezetimibe c) Fibrates d) Niacin', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
+          { id: 'antianginal', name: 'Antianginal Drugs', difficulty: 'medium', estimatedHours: 2, completed: false, priority: 8, textbookReference: 'Chapter 37-39: Cardiovascular Drugs' },
+          { id: 'antihypertensives', name: 'Antihypertensive Drugs', difficulty: 'hard', estimatedHours: 3, completed: false, priority: 9, textbookReference: 'Chapter 37-39: Cardiovascular Drugs' },
+          { id: 'antiarrhythmics', name: 'Antiarrhythmic Drugs', difficulty: 'hard', estimatedHours: 3, completed: false, priority: 9, textbookReference: 'Chapter 40: Antiarrhythmic Drugs' },
+          { id: 'heart-failure', name: 'Drugs for Heart Failure', difficulty: 'hard', estimatedHours: 2.5, completed: false, priority: 9, textbookReference: 'Chapter 41: Drugs for Heart Failure' },
+          { id: 'anticoagulants', name: 'Anticoagulants and Antiplatelet Drugs', difficulty: 'medium', estimatedHours: 2.5, completed: false, priority: 8, textbookReference: 'Chapter 43: Anticoagulants' },
+          { id: 'lipid-lowering', name: 'Lipid Lowering Agents', difficulty: 'medium', estimatedHours: 2, completed: false, priority: 7, textbookReference: 'Chapter 42: Hypolipidemic Drugs' },
         ]
       },
       {
         id: 'kidney-pharm',
         name: 'Kidney',
         topics: [
-          { 
-            id: 'diuretics', 
-            name: 'Diuretics', 
-            difficulty: 'medium', 
-            estimatedHours: 2.5, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 35: Diuretics',
-            pastQuestions: [
-              { question: 'Classify diuretics. Describe the mechanism of action of loop diuretics.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Compare thiazide and loop diuretics.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Spironolactone', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: Potassium sparing diuretics', type: 'short', year: '2020', university: 'Saurashtra University' },
-              { question: 'MCQ: Site of action of thiazide diuretic is: a) Proximal tubule b) Loop of Henle c) Distal convoluted tubule d) Collecting duct', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
+          { id: 'diuretics', name: 'Diuretics', difficulty: 'medium', estimatedHours: 2.5, completed: false, priority: 8, textbookReference: 'Chapter 35: Diuretics' },
         ]
       },
       {
         id: 'haematinics',
         name: 'Haematinics',
         topics: [
-          { 
-            id: 'iron', 
-            name: 'Iron and Iron Deficiency', 
-            difficulty: 'easy', 
-            estimatedHours: 1.5, 
-            completed: false, 
-            priority: 7, 
-            textbookReference: 'Chapter 44: Haematinics',
-            pastQuestions: [
-              { question: 'Describe the pharmacology of iron including its absorption, transport, and utilization.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Iron deficiency anemia treatment', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: Parenteral iron preparations', type: 'short', year: '2023', university: 'Saurashtra University' },
-              { question: 'MCQ: Iron is best absorbed from: a) Stomach b) Duodenum c) Jejunum d) Ileum', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'vit-b12', 
-            name: 'Vitamin B12 and Folic Acid', 
-            difficulty: 'easy', 
-            estimatedHours: 1.5, 
-            completed: false, 
-            priority: 7, 
-            textbookReference: 'Chapter 44: Haematinics',
-            pastQuestions: [
-              { question: 'Describe the pharmacology of Vitamin B12.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Folic acid in pregnancy', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'MCQ: Vitamin B12 deficiency causes: a) Microcytic anemia b) Macrocytic anemia c) Normocytic anemia d) Hemolytic anemia', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'erythropoietin', 
-            name: 'Erythropoietin', 
-            difficulty: 'easy', 
-            estimatedHours: 1, 
-            completed: false, 
-            priority: 6, 
-            textbookReference: 'Chapter 44: Haematinics',
-            pastQuestions: [
-              { question: 'Write short notes on: Erythropoietin', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'MCQ: Erythropoietin is used in: a) Iron deficiency b) CKD anemia c) Aplastic anemia d) Thalassemia', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
+          { id: 'iron', name: 'Iron and Iron Deficiency', difficulty: 'easy', estimatedHours: 1.5, completed: false, priority: 7, textbookReference: 'Chapter 44: Haematinics' },
+          { id: 'vit-b12', name: 'Vitamin B12 and Folic Acid', difficulty: 'easy', estimatedHours: 1.5, completed: false, priority: 7, textbookReference: 'Chapter 44: Haematinics' },
+          { id: 'erythropoietin', name: 'Erythropoietin', difficulty: 'easy', estimatedHours: 1, completed: false, priority: 6, textbookReference: 'Chapter 44: Haematinics' },
         ]
       },
       {
         id: 'git-pharm',
         name: 'Gastrointestinal System',
         topics: [
-          { 
-            id: 'antiulcer', 
-            name: 'Antiulcer Drugs', 
-            difficulty: 'easy', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 46: Drugs for Peptic Ulcer',
-            pastQuestions: [
-              { question: 'Classify antiulcer drugs. Describe the pharmacology of proton pump inhibitors.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Write short notes on: H2 receptor blockers', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Misoprostol', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Drug of choice for H. pylori eradication includes all except: a) Amoxicillin b) Clarithromycin c) Metronidazole d) Vancomycin', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antiemetics', 
-            name: 'Antiemetics', 
-            difficulty: 'easy', 
-            estimatedHours: 1.5, 
-            completed: false, 
-            priority: 7, 
-            textbookReference: 'Chapter 47: Emetics & Antiemetics',
-            pastQuestions: [
-              { question: 'Classify antiemetics with mechanism of action.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Ondansetron', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Drug of choice for chemotherapy induced vomiting is: a) Metoclopramide b) Ondansetron c) Promethazine d) Domperidone', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'laxatives', 
-            name: 'Laxatives and Purgatives', 
-            difficulty: 'easy', 
-            estimatedHours: 1, 
-            completed: false, 
-            priority: 6, 
-            textbookReference: 'Chapter 48: Laxatives',
-            pastQuestions: [
-              { question: 'Classify laxatives with examples.', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'MCQ: Osmotic laxative is: a) Bisacodyl b) Lactulose c) Psyllium d) Docusate', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antidiarrheal', 
-            name: 'Antidiarrheal Agents', 
-            difficulty: 'easy', 
-            estimatedHours: 1, 
-            completed: false, 
-            priority: 6, 
-            textbookReference: 'Chapter 49: Antidiarrheals',
-            pastQuestions: [
-              { question: 'Write short notes on: ORS composition', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'MCQ: Antidiarrheal contraindicated in children is: a) ORS b) Racecadotril c) Loperamide d) Zinc', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
+          { id: 'antiulcer', name: 'Antiulcer Drugs', difficulty: 'easy', estimatedHours: 2, completed: false, priority: 8, textbookReference: 'Chapter 46: Drugs for Peptic Ulcer' },
+          { id: 'antiemetics', name: 'Antiemetics', difficulty: 'easy', estimatedHours: 1.5, completed: false, priority: 7, textbookReference: 'Chapter 47: Emetics & Antiemetics' },
+          { id: 'laxatives', name: 'Laxatives and Purgatives', difficulty: 'easy', estimatedHours: 1, completed: false, priority: 6, textbookReference: 'Chapter 48: Laxatives' },
+          { id: 'antidiarrheal', name: 'Antidiarrheal Agents', difficulty: 'easy', estimatedHours: 1, completed: false, priority: 6, textbookReference: 'Chapter 49: Antidiarrheals' },
         ]
       },
       {
         id: 'antimicrobial',
         name: 'Antimicrobial Agents',
         topics: [
-          { 
-            id: 'penicillins', 
-            name: 'Penicillins and Cephalosporins', 
-            difficulty: 'medium', 
-            estimatedHours: 2.5, 
-            completed: false, 
-            priority: 9, 
-            textbookReference: 'Chapter 50-51: Antibiotics',
-            pastQuestions: [
-              { question: 'Classify penicillins with examples. Describe the mechanism of action and adverse effects.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Classify cephalosporins with examples.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Penicillin resistance', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: Beta lactamase inhibitors', type: 'short', year: '2020', university: 'Saurashtra University' },
-              { question: 'MCQ: Drug of choice for neurosyphilis is: a) Oral penicillin b) IV Penicillin G c) Ceftriaxone d) Doxycycline', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'macrolides', 
-            name: 'Macrolides and Tetracyclines', 
-            difficulty: 'medium', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 52-53: Antibiotics',
-            pastQuestions: [
-              { question: 'Describe the pharmacology of macrolide antibiotics.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Azithromycin', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Adverse effects of tetracyclines', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Macrolide that can be given once daily is: a) Erythromycin b) Clarithromycin c) Azithromycin d) Roxithromycin', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'fluoroquinolones', 
-            name: 'Fluoroquinolones', 
-            difficulty: 'medium', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 54: Fluoroquinolones',
-            pastQuestions: [
-              { question: 'Describe the pharmacology of fluoroquinolones.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Ciprofloxacin', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Fluoroquinolones are contraindicated in: a) Elderly b) Children c) Pregnancy d) Both b and c', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antitubercular', 
-            name: 'Antitubercular Drugs', 
-            difficulty: 'medium', 
-            estimatedHours: 2.5, 
-            completed: false, 
-            priority: 9, 
-            textbookReference: 'Chapter 55: Antitubercular Drugs',
-            pastQuestions: [
-              { question: 'Classify antitubercular drugs. Describe the pharmacology of first line drugs.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Describe the DOTS strategy for TB treatment.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Hepatotoxicity with ATT', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: Multi-drug resistant TB', type: 'short', year: '2020', university: 'Saurashtra University' },
-              { question: 'MCQ: Most hepatotoxic antitubercular drug is: a) Isoniazid b) Rifampicin c) Pyrazinamide d) Ethambutol', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antifungal', 
-            name: 'Antifungal Agents', 
-            difficulty: 'medium', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 7, 
-            textbookReference: 'Chapter 57: Antifungals',
-            pastQuestions: [
-              { question: 'Classify antifungal drugs with mechanism of action.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Amphotericin B', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'Write short notes on: Azole antifungals', type: 'short', year: '2023', university: 'Saurashtra University' },
-              { question: 'MCQ: Antifungal used in candidiasis is: a) Amphotericin B b) Fluconazole c) Both a and b d) None', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antiviral', 
-            name: 'Antiviral Drugs', 
-            difficulty: 'hard', 
-            estimatedHours: 2.5, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 58: Antivirals',
-            pastQuestions: [
-              { question: 'Classify antiviral drugs. Describe the pharmacology of anti-HIV drugs.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Describe the ART regimen for HIV.', type: 'long', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Acyclovir', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Drug used for influenza is: a) Acyclovir b) Oseltamivir c) Ribavirin d) Ganciclovir', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'antimalarial', 
-            name: 'Antimalarial Drugs', 
-            difficulty: 'medium', 
-            estimatedHours: 2, 
-            completed: false, 
-            priority: 8, 
-            textbookReference: 'Chapter 59: Antimalarials',
-            pastQuestions: [
-              { question: 'Classify antimalarial drugs. Describe the treatment of uncomplicated malaria.', type: 'long', year: '2023', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Artemisinin derivatives', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Chloroquine resistance', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Drug of choice for chloroquine resistant malaria is: a) Quinine b) ACT c) Primaquine d) Mefloquine', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
-          { 
-            id: 'anthelmintic', 
-            name: 'Anthelmintic Drugs', 
-            difficulty: 'easy', 
-            estimatedHours: 1.5, 
-            completed: false, 
-            priority: 6, 
-            textbookReference: 'Chapter 60: Anthelmintics',
-            pastQuestions: [
-              { question: 'Classify anthelmintic drugs with examples.', type: 'short', year: '2022', university: 'Saurashtra University' },
-              { question: 'Write short notes on: Albendazole', type: 'short', year: '2021', university: 'Gujarat University' },
-              { question: 'MCQ: Drug of choice for neurocysticercosis is: a) Mebendazole b) Albendazole c) Praziquantel d) Ivermectin', type: 'mcq', year: '2023', university: 'Saurashtra University' }
-            ]
-          },
+          { id: 'penicillins', name: 'Penicillins and Cephalosporins', difficulty: 'medium', estimatedHours: 2.5, completed: false, priority: 9, textbookReference: 'Chapter 50-51: Antibiotics' },
+          { id: 'macrolides', name: 'Macrolides and Tetracyclines', difficulty: 'medium', estimatedHours: 2, completed: false, priority: 8, textbookReference: 'Chapter 52-53: Antibiotics' },
+          { id: 'fluoroquinolones', name: 'Fluoroquinolones', difficulty: 'medium', estimatedHours: 2, completed: false, priority: 8, textbookReference: 'Chapter 54: Fluoroquinolones' },
+          { id: 'antitubercular', name: 'Antitubercular Drugs', difficulty: 'medium', estimatedHours: 2.5, completed: false, priority: 9, textbookReference: 'Chapter 55: Antitubercular Drugs' },
+          { id: 'antifungal', name: 'Antifungal Agents', difficulty: 'medium', estimatedHours: 2, completed: false, priority: 7, textbookReference: 'Chapter 57: Antifungals' },
+          { id: 'antiviral', name: 'Antiviral Drugs', difficulty: 'hard', estimatedHours: 2.5, completed: false, priority: 8, textbookReference: 'Chapter 58: Antivirals' },
+          { id: 'antimalarial', name: 'Antimalarial Drugs', difficulty: 'medium', estimatedHours: 2, completed: false, priority: 8, textbookReference: 'Chapter 59: Antimalarials' },
+          { id: 'anthelmintic', name: 'Anthelmintic Drugs', difficulty: 'easy', estimatedHours: 1.5, completed: false, priority: 6, textbookReference: 'Chapter 60: Anthelmintics' },
         ]
       }
     ]
@@ -1050,8 +758,147 @@ const initializeSubjects = (): Subject[] => {
   }))
 }
 
-// Main Component
-export default function MedicalExamDashboard() {
+// Auth helpers
+const checkAuth = (): boolean => {
+  if (typeof window === 'undefined') return false
+  try {
+    return localStorage.getItem(AUTH_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+const login = (username: string, password: string): boolean => {
+  if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+    localStorage.setItem(AUTH_KEY, 'true')
+    return true
+  }
+  return false
+}
+
+const logout = () => {
+  localStorage.removeItem(AUTH_KEY)
+}
+
+// Login Component
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError('')
+    
+    setTimeout(() => {
+      if (login(username, password)) {
+        onLogin()
+      } else {
+        setError('Invalid username or password')
+      }
+      setIsLoading(false)
+    }, 500)
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 p-1 mb-4 shadow-2xl">
+            <img 
+              src="/robot-logo.png" 
+              alt="Riyan's Dash Logo" 
+              className="w-full h-full object-cover rounded-xl"
+            />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Riyan's Dash</h1>
+          <p className="text-slate-400">Medical Exam Prep Dashboard</p>
+        </div>
+
+        {/* Login Card */}
+        <Card className="backdrop-blur-xl bg-white/10 border-white/20 shadow-2xl">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center mb-2">
+              <Lock className="h-6 w-6 text-indigo-400" />
+            </div>
+            <CardTitle className="text-white">Welcome Back</CardTitle>
+            <CardDescription className="text-slate-400">
+              Enter your credentials to access the dashboard
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-slate-300">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Enter username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-slate-300">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 pr-10"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-slate-400" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-slate-400" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {error && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+                  {error}
+                </div>
+              )}
+
+              <Button 
+                type="submit" 
+                className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-slate-500 text-sm mt-6">
+          🔒 Secure access for authorized users only
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// Main Dashboard Component
+function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [subjects, setSubjects] = useState<Subject[]>(initializeSubjects)
   const [selectedSubject, setSelectedSubject] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'subjects' | 'difficulty' | 'timeline'>('subjects')
@@ -1224,6 +1071,15 @@ export default function MedicalExamDashboard() {
                 <AlertTriangle className="h-4 w-4 mr-1" />
                 Reset
               </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={onLogout}
+                className="text-slate-600 hover:text-red-600 hover:border-red-300"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Logout
+              </Button>
               <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 border-0 text-white">
                 <CardContent className="p-3 flex items-center gap-2">
                   <Timer className="h-4 w-4" />
@@ -1392,7 +1248,6 @@ export default function MedicalExamDashboard() {
                               <AccordionContent className="px-4 pb-4">
                                 <div className="space-y-2">
                                   {system.topics.sort((a, b) => {
-                                    // Sort by: incomplete first, then by priority (high to low)
                                     if (a.completed !== b.completed) return a.completed ? 1 : -1
                                     return b.priority - a.priority
                                   }).map(topic => (
@@ -1667,11 +1522,9 @@ export default function MedicalExamDashboard() {
                     )
                     const hoursPerDay = Math.ceil(remainingHours / Math.max(daysUntil, 1))
                     
-                    // Get incomplete topics sorted by priority and difficulty
                     const prioritizedTopics = subject.systems
                       .flatMap(sys => sys.topics.filter(t => !t.completed).map(t => ({ ...t, system: sys.name })))
                       .sort((a, b) => {
-                        // Sort by priority first, then by difficulty (hard first)
                         if (a.priority !== b.priority) return b.priority - a.priority
                         const diffOrder = { hard: 0, medium: 1, easy: 2 }
                         return diffOrder[a.difficulty] - diffOrder[b.difficulty]
@@ -1834,4 +1687,39 @@ export default function MedicalExamDashboard() {
       </footer>
     </div>
   )
+}
+
+// Main Component with Auth
+export default function MedicalExamDashboard() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return checkAuth()
+  })
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return false
+  })
+
+  const handleLogin = () => {
+    setIsAuthenticated(true)
+  }
+
+  const handleLogout = () => {
+    logout()
+    setIsAuthenticated(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="animate-pulse text-white">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />
+  }
+
+  return <Dashboard onLogout={handleLogout} />
 }
