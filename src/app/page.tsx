@@ -914,6 +914,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedPdf, setGeneratedPdf] = useState<{ pdf: string; filename: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [includeImage, setIncludeImage] = useState(false)
+  const [generationStatus, setGenerationStatus] = useState('')
 
   // Fix hydration error - only render date calculations on client
   useEffect(() => {
