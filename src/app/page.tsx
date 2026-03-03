@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { 
   BookOpen, 
   Calendar, 
@@ -41,7 +42,6 @@ import {
   Loader2,
   Wand2
 } from 'lucide-react'
-import { Textarea } from '@/components/ui/textarea'
 
 // Types
 interface PastQuestion {
@@ -907,9 +907,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [subjects, setSubjects] = useState<Subject[]>(initializeSubjects)
   const [selectedSubject, setSelectedSubject] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'subjects' | 'difficulty' | 'timeline' | 'generator'>('subjects')
-    useEffect(() => {
-      setMounted(true)
-    }, [])
   const [mounted, setMounted] = useState(false)
   
   // PDF Generator states
@@ -917,6 +914,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedPdf, setGeneratedPdf] = useState<{ pdf: string; filename: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Fix hydration error - only render date calculations on client
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Calculate overall progress
   const getTotalTopics = useCallback(() => {
@@ -948,6 +950,44 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     ))
     return remaining
   }, [subjects])
+
+  // PDF Generator functions
+  const handleGeneratePdf = async () => {
+    if (!pdfTopic.trim()) return
+    
+    setIsGenerating(true)
+    setError(null)
+    setGeneratedPdf(null)
+    
+    try {
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: pdfTopic })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate PDF')
+      }
+      
+      setGeneratedPdf({ pdf: data.pdf, filename: data.filename })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const downloadPdf = () => {
+    if (!generatedPdf) return
+    
+    const link = document.createElement('a')
+    link.href = `data:application/pdf;base64,${generatedPdf.pdf}`
+    link.download = generatedPdf.filename
+    link.click()
+  }
 
   // Toggle topic completion with persistence
   const toggleTopic = (subjectId: string, systemId: string, topicId: string) => {
@@ -1054,44 +1094,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  //PDF Generator functions 
-  const handleGeneratorPdf = async () => {
-    if (!pdfTopic.trim()) return
-
-    setIsGenerating(true)
-    setError(null)
-    setGeneratePdf(null)
-
-    try {
-      const response = await fetch('/api/generate-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: pdfTopic })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate PDF')
-      }
-
-      setGeneratedPdf({ pdf: data.pdf, filename: data.filename })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occured')
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  const downloadPdf = () => {
-    if (!generatedPdf) return
-
-    const link = document.createElement('a')
-    link.href = 'data:application/pdf;base64,${generatedPdf.pdf}'
-    link.download = generatedPdf.filename
-    link.click()  
-  }
-  
   const schedule = getRecommendedSchedule()
   const nextExam = getNextExam()
 
@@ -1218,7 +1220,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                         {subject.examDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                       </p>
                     </div>
-                    <Badge variant={getDaysUntil(subject.examDate) <= 30 ? 'destructive' : 'secondary'}>
+                    <Badge variant={mounted && getDaysUntil(subject.examDate) <= 30 ? 'destructive' : 'secondary'}>
                       {mounted ? formatTimeLeft(getDaysUntil(subject.examDate)) : '...'}
                     </Badge>
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3/4">
@@ -1239,19 +1241,19 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <TabsList className="grid w-full grid-cols-4 max-w-xl">
             <TabsTrigger value="subjects" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
-              By Subject
+              <span className="hidden sm:inline">By Subject</span>
             </TabsTrigger>
             <TabsTrigger value="difficulty" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              By Difficulty
+              <span className="hidden sm:inline">By Difficulty</span>
             </TabsTrigger>
             <TabsTrigger value="timeline" className="flex items-center gap-2">
-              <Timer className="h-4 w-4" />
-              Timeline
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">Timeline</span>
             </TabsTrigger>
             <TabsTrigger value="generator" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
-              PDF Generator
+              <span className="hidden sm:inline">PDF Generator</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1597,7 +1599,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             <div>
                               <h3 className="font-semibold text-lg">{subject.name}</h3>
                               <p className="text-sm text-slate-500">
-                                {mounted ? formatTimeLeft(daysUntil): '...'} • {remainingHours}h remaining
+                                {formatTimeLeft(daysUntil)} • {remainingHours}h remaining
                               </p>
                             </div>
                           </div>
